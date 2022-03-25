@@ -1,18 +1,24 @@
 import sys
 import os
 import scanner
+import config
+import json
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtGui import *
 
 class rootWindow(QWidget):
     
-    def __init__(self, win):
+    def __init__(self, win, os_system):
         super().__init__()
         self.win = win
+        self.os = os_system
+        self.config = config.reload()
         
         self.height = 720
         self.width = 1080
+
+        self.duplicates = []
         
     def build(self):
         self.win.setWindowTitle("File Scanner")
@@ -25,8 +31,18 @@ class rootWindow(QWidget):
         
         self.scan_button = QPushButton('Scan', self.win)
         self.scan_button.setToolTip('Scan your files')
-        self.scan_button.setGeometry(10, 10, 150, 30)
+        self.scan_button.setGeometry(10, 10, 100, 30)
         self.scan_button.clicked.connect(self.scan)
+
+        self.dup_button = QPushButton('Remove duplicates', self.win)
+        self.dup_button.setToolTip('Remove all duplicates')
+        self.dup_button.setGeometry(120, 10, 150, 30)
+        self.dup_button.clicked.connect(self.remove_dup)
+
+        self.exp_button = QPushButton('Export scan', self.win)
+        self.exp_button.setToolTip('Export your scan to JSON file')
+        self.exp_button.setGeometry(280, 10, 100, 30)
+        self.exp_button.clicked.connect(self.export_scan)
         
         self.createTable(0)
         
@@ -36,10 +52,20 @@ class rootWindow(QWidget):
         text, ok = QInputDialog.getText(self, 'Scan', 'Scan folder :')
         if not ok:
             return
+
+        if text == "#folder":
+            text = self.config["folder"]
         
-        self.file_json = scanner.scan(text)
+        self.file_json = scanner.scan(text, self.os, self.config)
         self.file_id = 0
         self.sha256 = []
+        self.duplicates = []
+
+        if self.config["already_scanned"] != "":
+            already_scanned = json.loads(open(self.config["already_scanned"], "r").read())
+
+            for file in already_scanned.values():
+                self.sha256.append(file["sha256"])
         
         self.tableWidget.setRowCount(len(self.file_json) + 1)
         
@@ -47,7 +73,38 @@ class rootWindow(QWidget):
             
             self.file_id += 1
             self.setFile(file)
-            
+
+    @pyqtSlot()
+    def export_scan(self):
+        
+        with open("export.json", "w") as f:
+            f.write(json.dumps(self.file_json, indent=4))
+
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle("Success")
+        dlg.setText('New file "export.json" was created')
+        dlg.exec()
+
+    @pyqtSlot()
+    def remove_dup(self):
+        
+        if len(self.duplicates) > 0:
+
+            for file_id in self.duplicates:
+
+                cell = self.tableWidget.item(file_id, 5)
+                print("remove > " + cell.text())
+                os.remove(cell.text())
+                print(self.duplicates)
+                print(file_id)
+
+        else:
+
+            dlg = QMessageBox(self)
+            dlg.setWindowTitle("Remove duplicates")
+            dlg.setText("No files are duplicated")
+            button = dlg.exec()
+
     def setFile(self, file):
         
         meta = self.file_json[file]
@@ -61,6 +118,8 @@ class rootWindow(QWidget):
         self.tableWidget.setItem(self.file_id, 6, QTableWidgetItem(meta["sha256"]))
         
         if meta["sha256"] in self.sha256:
+
+            self.duplicates.append(self.file_id)
             
             for i in range(7):
                 self.tableWidget.item(self.file_id, i).setBackground(QColor(255,200,200))
@@ -100,7 +159,13 @@ class rootWindow(QWidget):
         
         if(column == 5):
             
-            os.system(f'explorer /select, "{cell.text()}"')
+            if self.os == "linux":
+
+                os.system(f'xdg-open "{cell.text()}"')
+
+            else:
+
+                os.system(f'explorer /select, "{cell.text()}"')
             
         if(column == 6):
             
@@ -136,10 +201,11 @@ class rootWindow(QWidget):
                         self.tableWidget.item(r, c).setBackground(QColor(255,255,255))
    
         
-if __name__ == "__main__":
+def start(os_system):
     app = QApplication(sys.argv)
     root = QWidget()
-    rootWin = rootWindow(root)
+    print(os_system)
+    rootWin = rootWindow(root, os_system)
     rootWin.build()
     
     root.show()

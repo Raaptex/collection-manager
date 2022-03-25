@@ -1,0 +1,7 @@
+{
+    "add_tag": true, 
+    "tag": "sha",
+    "folder": "/home/alex/Dev/FileScanner/test",
+    "scan_threads": 2,
+    "already_scanned": ""
+}

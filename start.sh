@@ -1,1 +1,1 @@
-py gui.py
+sudo python3 app.py linux
