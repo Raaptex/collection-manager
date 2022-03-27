@@ -52,19 +52,27 @@ def powershell(cmd):
     return completed
 
 
-def getSHA(path, filename):
+def get_files_sha(main, files_json : dict):
     
-    sha = "Error"
+    i = 0
+    
+    for file in files_json.keys():
+        i+=1
+        if "sha256" not in files_json[file]:
+            sha = "Error"
 
-    if system_os == "windows":
-        sha = str(powershell(f'Get-FileHash "{path}\\{filename}" -Algorithm SHA256 | Format-List').stdout).encode("utf-8").decode("utf-8").split("\\n")[3].split(": ")[1].split("\\r")[0]
-    elif system_os == "linux":
-        sha = os.popen(f'sha256sum "{path}/{filename}"').read().split(" ")[0]
-    else:
-        print("Error for SHA !")
-        print(system_os)
+            if system_os == "windows":
+                sha = str(powershell(f'Get-FileHash "{file}" -Algorithm SHA256 | Format-List').stdout).encode("utf-8").decode("utf-8").split("\\n")[3].split(": ")[1].split("\\r")[0]
+            elif system_os == "linux":
+                sha = os.popen(f'sha256sum "{file}"').read().split(" ")[0]
+            else:
+                print("Error for SHA !")
+                print(system_os)
+                
+            files_json[file]["sha256"] = sha
+            result = main.setFile(files_json[file], i)
 
-    return sha
+    return files_json
 
 
 def d_size(size):
@@ -98,7 +106,6 @@ def get_file_metadata(path, filename):
     file_metadata["disk"] = path.split(folder_separator)[0]
     file_metadata["folder"] = path + folder_separator
     file_metadata["file_path"] = path + folder_separator + filename
-    file_metadata["sha256"] = getSHA(path, filename)
     if(filename.split(".")[-1] in ["mp4", "avi", "mkv"]):
         props = get_video_properties(path + folder_separator + filename)
 
@@ -129,6 +136,7 @@ def open_dir(path):
 
 def getFile(path, file):
     global completed_files
+    
 
     if config["add_tag"] == True:
         file = add_tag(path, file, config["tag"])
@@ -149,7 +157,7 @@ def countFiles(path):
         
         if os.path.isdir(path + folder_separator + file):
             
-            open_dir(path + folder_separator + file)
+            countFiles(path + folder_separator + file)
         
         else:
             
@@ -159,8 +167,7 @@ def countFiles(path):
 
                 print(f"[{files_count}] " + path + folder_separator + file)
 
-
-def scan(path, s_os, config_):
+def scan_files(path, s_os, config_):
     global files_path, out_json, system_os, folder_separator, config, files_count, completed_files, thread_manager
     
     if s_os == "linux":

@@ -1,2 +1,1 @@
-python3 app.py windows
-pause
+python app.py windows
