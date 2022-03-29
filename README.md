@@ -1,5 +1,5 @@
 # Collection Manager
- - #### _Manage your file collection_ :
+ - ### _Manage your file collection_ :
 
 > Use "folder" in config.json
 - Scan for "#folder"
@@ -13,7 +13,7 @@
 > Import base (Not working !)
 - Press "Import JSON" and type db.json
 
- - #### _Colors_ :
+ - ### _Colors_ :
 
 - Green : Valid file with sha
 - Orange : Sha loading
