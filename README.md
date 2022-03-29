@@ -1,4 +1,8 @@
 # Collection Manager
+
+Verion : BETA-0.1
+Version type : Testing
+
  - ### _Manage your file collection_ :
 
 > Use "folder" in config.json
