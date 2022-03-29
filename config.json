@@ -1,7 +1,7 @@
 {
-    "add_tag": false, 
+    "add_tag": true, 
     "tag": "sha",
-    "folder": "F:/Dev/Python/FileScanner/copy",
+    "folder": "Folder path for #folder",
     "scan_threads": 5,
     "already_scanned": "export.json"
 }

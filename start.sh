@@ -1,1 +1,1 @@
-sudo python3 app.py linux
+sudo python3 src/app.py linux

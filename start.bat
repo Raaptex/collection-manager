@@ -1,1 +1,1 @@
-python app.py windows
+python src/app.py windows
