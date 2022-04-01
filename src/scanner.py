@@ -2,12 +2,12 @@
 
 from time import sleep
 from videoprops import get_video_properties
+from debug import Debug
 
 import datetime
 import os
 import subprocess
 import threading
-
 
 class ThreadManager:
 
@@ -20,7 +20,7 @@ class ThreadManager:
 
     def thread_ended(self):
 
-        print("{-} Thread ended !")
+        Debug.Info("{-} Thread ended !")
         self.current_queue -= 1
         if len(self.queue) >= 1:
             self.start_thread(self.queue.pop(0))
@@ -31,26 +31,30 @@ class ThreadManager:
 
             self.current_queue += 1
             threading.Thread(target=self.t_func, args=t_args).start()
-            print("{+} Thread started !")
+            Debug.Info("{+} Thread started !")
         
         else:
 
             self.queue.append(t_args)
-            print("{#} New thread in queue !")
+            Debug.Info("{#} New thread in queue !")
 
 
 def add_tag(path, filename, tag):
 
-    if filename.split(".")[-2] != tag:
+    if len(filename.split(".")) >= 2:
+        if filename.split(".")[-2] != tag:
 
-        new_name = ".".join(filename.split(".")[:-1]) + "." + tag + "." + filename.split(".")[-1]
+            new_name = ".".join(filename.split(".")[:-1]) + "." + tag + "." + filename.split(".")[-1]
 
-        os.rename(path + folder_separator + filename, path + folder_separator + new_name)
-        return new_name
-    
-    else:
+            os.rename(path + folder_separator + filename, path + folder_separator + new_name)
+            return new_name
         
-        return filename
+        else:
+            
+            return filename
+    else:
+            
+            return filename
 
 
 def powershell(cmd):
@@ -113,12 +117,21 @@ def get_file_metadata(path, filename):
     file_metadata["folder"] = path + folder_separator
     file_metadata["file_path"] = path + folder_separator + filename
     if(filename.split(".")[-1] in ["mp4", "avi", "mkv"]):
-        props = get_video_properties(path + folder_separator + filename)
+        
+        try:
+            props = get_video_properties(path + folder_separator + filename)
 
-        file_metadata["codec"] = props['codec_name']
-        file_metadata["resolution"] = str(props['width']) + "x" + str(props['height'])
-        file_metadata["ratio"] = props['display_aspect_ratio']
-        file_metadata["framerate"] = props['avg_frame_rate']
+            file_metadata["codec"] = props['codec_name']
+            file_metadata["resolution"] = str(props['width']) + "x" + str(props['height'])
+            file_metadata["ratio"] = props['display_aspect_ratio']
+            file_metadata["framerate"] = props['avg_frame_rate']
+            
+        except:
+            
+            file_metadata["codec"] = "Error"
+            file_metadata["resolution"] = "Error"
+            file_metadata["ratio"] = "Error"
+            file_metadata["framerate"] = "Error"
 
     return file_metadata
 
@@ -150,7 +163,7 @@ def getFile(path, file):
     out_json[path + folder_separator + file] = metadata
 
     completed_files += 1
-    print(f"[{completed_files}/{files_count}] " + path + folder_separator + file)
+    Debug.Log(f"[{completed_files}/{files_count}] " + path + folder_separator + file)
 
     thread_manager.thread_ended()
 
@@ -170,10 +183,10 @@ def countFiles(path):
                 
                 files_count += 1
 
-                print(f"[{files_count}] " + path + folder_separator + file)
+                Debug.Log(f"[{files_count}] " + path + folder_separator + file)
 
 def scan_files(path, s_os, config_):
-    global files_path, out_json, system_os, folder_separator, config, files_count, completed_files, thread_manager
+    global files_path, out_json, system_os, folder_separator, config, files_count, completed_files, thread_manager, Debug
     
     if s_os == "linux":
         folder_separator = "/"
@@ -189,6 +202,7 @@ def scan_files(path, s_os, config_):
     files_count = 0
     completed_files = 0
     thread_manager = ThreadManager(getFile, config["scan_threads"])
+    Debug = Debug(config["log"])
 
     countFiles(files_path)
             

@@ -1,7 +1,6 @@
 {
     "add_tag": true, 
     "tag": "sha",
-    "folder": "Folder path for #folder",
     "scan_threads": 5,
-    "already_scanned": "export.json"
+    "log": true
 }
