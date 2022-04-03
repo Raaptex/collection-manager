@@ -10,7 +10,10 @@ class Debug:
     def add_time(self, string):
         
         now = datetime.datetime.now()
-        return f"[{now.hour}:{now.minute}:{now.second}] " + string
+        hour = '{:02}'.format(now.hour)
+        minute = '{:02}'.format(now.minute)
+        second = '{:02}'.format(now.second)
+        return f"[{hour}:{minute}:{second}] " + string
     
     def log_in_file(self, string):
         

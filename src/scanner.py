@@ -8,6 +8,12 @@ import datetime
 import os
 import subprocess
 import threading
+import json
+import time
+
+Debug = Debug(json.loads(open("config.json", "r").read())["log"])
+paused = False
+end_scan = False
 
 class ThreadManager:
 
@@ -20,7 +26,6 @@ class ThreadManager:
 
     def thread_ended(self):
 
-        Debug.Info("{-} Thread ended !")
         self.current_queue -= 1
         if len(self.queue) >= 1:
             self.start_thread(self.queue.pop(0))
@@ -31,12 +36,10 @@ class ThreadManager:
 
             self.current_queue += 1
             threading.Thread(target=self.t_func, args=t_args).start()
-            Debug.Info("{+} Thread started !")
         
         else:
 
             self.queue.append(t_args)
-            Debug.Info("{#} New thread in queue !")
 
 
 def add_tag(path, filename, tag):
@@ -62,13 +65,38 @@ def powershell(cmd):
     return completed
 
 
-def get_files_sha(main, files_json : dict):
+def get_files_sha(files_json : dict):
+    global end_scan
     
-    i = 0
+    total_size = 0
     
     for file in files_json.keys():
+        
+        total_size += files_json[file]["size"]
+    
+    i = 0
+    return_json = {}
+    times = list()
+    
+    for file in files_json.keys():
+        
+        if paused:
+            Debug.Log("Scan paused !")
+        
+        while paused:
+            
+            time.sleep(0.5)
+            
+            if not paused:
+                Debug.Log("Scan resumed !")
+        
+        if end_scan:
+            end_scan = False
+            return files_json
+        
         i+=1
         if "sha256" not in files_json[file]:
+            start_time = time.time()
             sha = "Error"
 
             if system_os == "windows":
@@ -78,10 +106,50 @@ def get_files_sha(main, files_json : dict):
             else:
                 print("Error for SHA !")
                 print(system_os)
+            
+            total_size -= files_json[file]["size"]
+            
+            if files_json[file]["size"] >= 1e+8:   
                 
-            files_json[file]["sha256"] = sha
-            result = main.setFile(files_json[file], i)
+                sha_time = time.time() - start_time
+                go_time = sha_time / files_json[file]["size"] * 1e+9
+                Debug.Info(str(sha_time))
+                Debug.Info(str(go_time))
+                
+                times.append(go_time)
+                mean = sum(times)/len(times)
+                est_time = round(total_size / 1e+9 * mean)
+                
+                payload = {
+                    "d_time": str(est_time) + "s",
+                    "h": 0,
+                    "m": 0,
+                    "s": est_time
+                }
+                
+                if est_time >= 60:
+                    
+                    est_time = round(est_time / 60)
+                    payload["d_time"] = str(est_time) + "m"
+                    payload["m"] = est_time
+                    payload["s"] = 0
+                    
+                if est_time >= 60:
+                    
+                    payload["d_time"] = str(est_time // 60) + "h" + str(est_time % 60) + "m"
+                    payload["m"] = est_time % 60
+                    payload["h"] = est_time // 60
+                
+                root.update_status(estimated_time = True, payload = payload)
+            
+            root.update_status(get_sha = True, i = i, i2 = len(files_json.keys()))
+            
+            return_json[file] = files_json[file]
+            return_json[file]["sha256"] = sha
+            return_json[file]["sha_date"] = str(datetime.datetime.now())
+            root.setFile(return_json[file], i)
 
+    end_scan = False
     return files_json
 
 
@@ -113,7 +181,10 @@ def get_file_metadata(path, filename):
     file_metadata["d_size"] = d_size(stat_file.st_size)
     file_metadata["name"] = filename
     file_metadata["date"] = str(datetime.datetime.fromtimestamp(os.path.getmtime(path + folder_separator + filename))).split(".")[0]
-    file_metadata["disk"] = path.split(folder_separator)[0]
+    if system_os == "windows":
+        file_metadata["disk"] = path.split(folder_separator)[0]
+    elif system_os == "linux":
+        file_metadata["disk"] = path.split(folder_separator)[4]
     file_metadata["folder"] = path + folder_separator
     file_metadata["file_path"] = path + folder_separator + filename
     if(filename.split(".")[-1] in ["mp4", "avi", "mkv"]):
@@ -152,6 +223,24 @@ def open_dir(path):
                 
     return
 
+def read_files_in_dir(path):
+    
+    for file in os.listdir(path):
+        
+        if os.path.isdir(path + folder_separator + file):
+            
+            read_files_in_dir(path + folder_separator + file)
+        
+        else:
+            
+            if os.path.isfile(path + folder_separator + file):
+                
+                out_json[path + folder_separator + file] = {
+                    "name": file,
+                    "file_path": path + folder_separator + file
+                }
+                
+    return
 
 def getFile(path, file):
     global completed_files
@@ -163,7 +252,8 @@ def getFile(path, file):
     out_json[path + folder_separator + file] = metadata
 
     completed_files += 1
-    Debug.Log(f"[{completed_files}/{files_count}] " + path + folder_separator + file)
+    #Debug.Log(f"[{completed_files}/{files_count}] " + path + folder_separator + file)
+    root.update_status(get_meta_data = True, i = completed_files, i2 = files_count)
 
     thread_manager.thread_ended()
 
@@ -183,7 +273,28 @@ def countFiles(path):
                 
                 files_count += 1
 
-                Debug.Log(f"[{files_count}] " + path + folder_separator + file)
+                #Debug.Log(f"[{files_count}] " + path + folder_separator + file)
+
+def get_files(path, s_os, config_):
+    global files_path, out_json, system_os, folder_separator, config, files_count, completed_files, thread_manager, Debug
+    
+    root.update_status(get_files = True)
+    
+    if s_os == "linux":
+        folder_separator = "/"
+    elif s_os == "windows":
+        folder_separator = "\\"
+    else:
+        return print("Error on scanning !")
+
+    files_path = path.replace("/", folder_separator)
+    out_json = dict()
+    system_os = s_os
+    config = config_
+            
+    read_files_in_dir(files_path)
+        
+    return out_json
 
 def scan_files(path, s_os, config_):
     global files_path, out_json, system_os, folder_separator, config, files_count, completed_files, thread_manager, Debug
@@ -202,7 +313,6 @@ def scan_files(path, s_os, config_):
     files_count = 0
     completed_files = 0
     thread_manager = ThreadManager(getFile, config["scan_threads"])
-    Debug = Debug(config["log"])
 
     countFiles(files_path)
             
@@ -212,3 +322,7 @@ def scan_files(path, s_os, config_):
         sleep(0.5)
         
     return out_json
+
+def set_root(root_class):
+    global root
+    root = root_class
