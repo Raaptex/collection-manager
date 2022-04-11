@@ -1,5 +1,6 @@
 # coding: utf-8
 
+from enum import Flag
 from time import sleep
 from videoprops import get_video_properties
 from debug import Debug
@@ -206,24 +207,27 @@ def get_file_metadata(path, filename):
     elif system_os == "linux":
         file_metadata["disk"] = path.split(folder_separator)[4]
     file_metadata["folder"] = path + folder_separator
-    if(filename.split(".")[-1] in ["mp4", "avi", "mkv"]):
         
-        try:
-            props = get_video_properties(path + folder_separator + filename)
+    try:
+        props = get_video_properties(path + folder_separator + filename)
 
-            file_metadata["codec"] = props['codec_name']
-            file_metadata["resolution"] = str(props['width']) + "x" + str(props['height'])
-            file_metadata["ratio"] = props['display_aspect_ratio']
-            file_metadata["framerate"] = props['avg_frame_rate']
-            
-        except:
-            
-            file_metadata["codec"] = "Error"
-            file_metadata["resolution"] = "Error"
-            file_metadata["ratio"] = "Error"
-            file_metadata["framerate"] = "Error"
+        file_metadata["codec"] = props['codec_name']
+        file_metadata["resolution"] = str(props['width']) + "x" + str(props['height'])
+        file_metadata["ratio"] = props['display_aspect_ratio']
+        file_metadata["framerate"] = props['avg_frame_rate']
+        
+        return file_metadata
+        
+    except:
+        
+        file_metadata["codec"] = "Error"
+        file_metadata["resolution"] = "Error"
+        file_metadata["ratio"] = "Error"
+        file_metadata["framerate"] = "Error"
+        
+        return False
 
-    return file_metadata
+    
 
 
 def open_dir(path):
@@ -268,7 +272,8 @@ def getFile(path, file):
         file = add_tag(path, file, config["tag"])
 
     metadata = get_file_metadata(path, file)
-    out_json[path + folder_separator + file] = metadata
+    if metadata != False:
+        out_json[path + folder_separator + file] = metadata
 
     completed_files += 1
     #Debug.Log(f"[{completed_files}/{files_count}] " + path + folder_separator + file)
