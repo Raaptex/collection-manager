@@ -3,6 +3,7 @@
 from time import sleep
 from videoprops import get_video_properties
 from debug import Debug
+from PyQt5.QtGui import *
 
 import datetime
 import os
@@ -82,7 +83,8 @@ def get_files_sha(files_json : dict):
         
         if paused:
             Debug.Log("Scan paused !")
-        
+            root.s.paussed()
+            
         while paused:
             
             time.sleep(0.5)
@@ -92,10 +94,14 @@ def get_files_sha(files_json : dict):
         
         if end_scan:
             end_scan = False
-            return files_json
+            return return_json
         
         i+=1
         if "sha256" not in files_json[file]:
+            
+            for c in range(root.table_cols):
+                root.tableWidget.item(i, c).setBackground(QColor(255,200,100))
+            
             start_time = time.time()
             sha = "Error"
 
@@ -147,10 +153,23 @@ def get_files_sha(files_json : dict):
             return_json[file] = files_json[file]
             return_json[file]["sha256"] = sha
             return_json[file]["sha_date"] = str(datetime.datetime.now())
+            
+            with open("db.json", "r") as r:
+                db = json.loads(r.read())
+                db["collection"].update(return_json)
+                if sha not in db["ids"]:
+                    db["last_id"] += 1
+                    db["ids"][sha] = db["last_id"]
+                    
+                return_json[file]["id"] = db["ids"][sha]
+                
+                with open("db.json", "w") as w:
+                    w.write(json.dumps(db, indent=4))
+            
             root.setFile(return_json[file], i)
 
     end_scan = False
-    return files_json
+    return return_json
 
 
 def d_size(size):
@@ -177,6 +196,7 @@ def get_file_metadata(path, filename):
     
     stat_file = os.stat(path + folder_separator + filename)
     
+    file_metadata["file_path"] = path + folder_separator + filename
     file_metadata["size"] = stat_file.st_size 
     file_metadata["d_size"] = d_size(stat_file.st_size)
     file_metadata["name"] = filename
@@ -186,7 +206,6 @@ def get_file_metadata(path, filename):
     elif system_os == "linux":
         file_metadata["disk"] = path.split(folder_separator)[4]
     file_metadata["folder"] = path + folder_separator
-    file_metadata["file_path"] = path + folder_separator + filename
     if(filename.split(".")[-1] in ["mp4", "avi", "mkv"]):
         
         try:

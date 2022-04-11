@@ -1,6 +1,6 @@
 # Collection Manager
 
-Verion : BETA-0.3
+Verion : BETA-0.4
 Version type : Testing
 
  - ### _Manage your file collection_ :

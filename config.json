@@ -1,6 +1,7 @@
 {
-    "add_tag": true, 
+    "add_tag": true,
     "tag": "sha",
     "scan_threads": 5,
-    "log": true
+    "log": true,
+    "lang": "fr"
 }

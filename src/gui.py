@@ -1,5 +1,11 @@
+#-*- coding:Utf-8 -*-
+
 import sys
 import os
+
+import requests
+from lang import Lang
+
 import scanner
 import config
 import threading
@@ -37,51 +43,67 @@ class rootWindow(QWidget):
         
         self.height = 720
         self.width = 1080
+        
+        self.table_cols = 10
 
         self.duplicates = []
         self.w = None
         self.s = None
+        self.settingsWin = None
         self.scanning = False
+        self.file_json = {}
+        self.sha256 = []
+        
+        self.lang = Lang()
         
         scanner.set_root(self)
         
     def build(self):
-        self.win.setWindowTitle("Collection Manager BETA-0.3")
+        
+        self.win.setWindowTitle("Collection Manager BETA-0.4")
         self.win.setGeometry(100, 100, self.width, self.height)
         
-        self.label = QLabel(self.win)
+        """self.label = QLabel(self.win)
         self.label.setText("Collection Manager")
         self.label.setGeometry(round(self.width/2 - 190/2), 10, 190, 30)
-        self.label.setStyleSheet("font-size: 22px")
+        self.label.setStyleSheet("font-size: 22px")"""
         
-        self.scan_button = QPushButton('Scan', self.win)
-        self.scan_button.setToolTip('Scan your files')
-        self.scan_button.setGeometry(10, 10, 50, 30)
+        x = 10
+        
+        self.scan_button = QPushButton(self.lang.get_string("scan_button"), self.win)
+        self.scan_button.setGeometry(x, 10, self.lang.string_to_font_size("scan_button"), 30)
         self.scan_button.clicked.connect(self.scan)
+        
+        x += self.lang.string_to_font_size("scan_button") + 10
 
-        self.dup_button = QPushButton('Remove duplicates', self.win)
-        self.dup_button.setToolTip('Remove all duplicates')
-        self.dup_button.setGeometry(70, 10, 130, 30)
+        self.dup_button = QPushButton(self.lang.get_string("remove_duplicates_button"), self.win)
+        self.dup_button.setGeometry(x, 10, self.lang.string_to_font_size("remove_duplicates_button"), 30)
         self.dup_button.clicked.connect(self.remove_dup)
 
-        self.exp_button = QPushButton('Export CSV', self.win)
-        self.exp_button.setToolTip('Export your scan to CSV file')
-        self.exp_button.setGeometry(210, 10, 100, 30)
+        x += self.lang.string_to_font_size("remove_duplicates_button") + 10
+
+        self.exp_button = QPushButton(self.lang.get_string("export_csv_button"), self.win)
+        self.exp_button.setGeometry(x, 10, self.lang.string_to_font_size("export_csv_button"), 30)
         self.exp_button.clicked.connect(self.export_scan)
         
-        self.imp_button = QPushButton('Clean the base', self.win)
-        self.imp_button.setToolTip('Delete removed file in the base')
-        self.imp_button.setGeometry(320, 10, 100, 30)
+        x += self.lang.string_to_font_size("export_csv_button") + 10
+        
+        self.imp_button = QPushButton(self.lang.get_string("clean_base_button"), self.win)
+        self.imp_button.setGeometry(x, 10, self.lang.string_to_font_size("clean_base_button"), 30)
         self.imp_button.clicked.connect(self.clean_the_base)
         
-        self.help_button = QPushButton('Help', self.win)
-        self.help_button.setToolTip('Get help')
-        self.help_button.setGeometry(self.width - 50, 10, 40, 30)
+        x += self.lang.string_to_font_size("clean_base_button") + 10
+        
+        self.imp_button = QPushButton(self.lang.get_string("import_button"), self.win)
+        self.imp_button.setGeometry(x, 10, self.lang.string_to_font_size("import_button"), 30)
+        self.imp_button.clicked.connect(self.import_csv)
+        
+        self.help_button = QPushButton(self.lang.get_string("help_button"), self.win)
+        self.help_button.setGeometry(self.width - 50, 10, self.lang.string_to_font_size("help_button"), 30)
         self.help_button.clicked.connect(self.open_help)
         
         self.settings_button = QPushButton('⚙', self.win)
-        self.settings_button.setToolTip('Open settings')
-        self.settings_button.setGeometry(self.width - 90, 10, 30, 30)
+        self.settings_button.setGeometry(self.width - self.lang.string_to_font_size("help_button") + 20, 10, 30, 30)
         self.settings_button.clicked.connect(self.open_settings)
         
         self.createTable(0)
@@ -96,7 +118,7 @@ class rootWindow(QWidget):
             self.width = self.win.frameGeometry().width()
             self.height = self.win.frameGeometry().height()
                 
-            self.label.setGeometry(round(self.width/2 - 190/2), 10, 190, 30)
+            #self.label.setGeometry(round(self.width/2 - 190/2), 10, 190, 30)
             self.help_button.setGeometry(self.width - 50, 10, 40, 30)
             self.settings_button.setGeometry(self.width - 90, 10, 30, 30)
             self.tableWidget.setGeometry(10, 50, self.width-20, self.height-100)
@@ -145,15 +167,50 @@ class rootWindow(QWidget):
             self.s.status.setText("Status : Done")
         
     @pyqtSlot()
+    def import_csv(self):
+        
+        file , check = QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()","", "CSV Files (*.csv)")
+        if check:
+            
+            imported = csv_editor.CsvEditor().csv_to_json(file)
+            missing = []
+            
+            for file_path in imported.keys():
+                if not os.path.exists(file_path):
+                    missing.append(file_path)
+            
+            if len(missing) > 0: 
+                dlg = QMessageBox(self)
+                dlg.setWindowTitle("Missing files")
+                dlg.setText(f"There are {len(missing)} files missing, do you want to remove them from the database ?")
+                dlg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                dlg.setIcon(QMessageBox.Question)
+                button = dlg.exec()
+
+                if button == QMessageBox.Yes:
+                    for file_path in missing:
+                        del imported[file_path]
+                
+            f_id = len(self.file_json.keys()) + 1
+                 
+            for key in imported:
+                
+                self.setFile(imported[key], f_id)
+                f_id += 1
+                
+            self.file_json.update(imported)
+                    
+    @pyqtSlot()
     def open_settings(self):
         
-        if self.os == "windows":
-            
-            os.startfile("config.json")
-            
-        elif self.os == "linux":
-            
-            os.system("kde-open config.json")
+        if self.settingsWin is None:
+            self.settingsWin = settingsWindow()
+            self.settingsWin.build(self)
+            self.settingsWin.show()
+
+        else:
+            self.settingsWin.close()
+            self.settingsWin = None
     
     @pyqtSlot()
     def open_help(self):
@@ -220,10 +277,8 @@ class rootWindow(QWidget):
         
         self.scanning = True
         
-        #if self.text == "#folder":
-        #    self.text = self.config["folder"]
-        
-        self.file_json = scanner.get_files(self.scan_folder, self.os, self.config)
+        Debug.Log("Getting files...")
+        self.file_json.update(scanner.get_files(self.scan_folder, self.os, self.config))
         self.file_id = 0
         self.tableWidget.setRowCount(len(self.file_json) + 1)
         
@@ -232,9 +287,9 @@ class rootWindow(QWidget):
             self.file_id += 1
             self.setFile(self.file_json[file], self.file_id, step_1=True)
         
+        Debug.Log("Getting files metadata...")
         self.file_json = scanner.scan_files(self.scan_folder, self.os, self.config)
         self.file_id = 0
-        self.sha256 = []
         self.duplicates = []
         missing = dict()
         
@@ -249,6 +304,7 @@ class rootWindow(QWidget):
             self.file_id += 1
             self.setFile(self.file_json[file], self.file_id)
         
+        Debug.Log("Getting files SHA...")
         scanner.get_files_sha(self.file_json)
             
         missing = compare.Comparator().get_missing_files(collection, self.file_json)
@@ -320,37 +376,55 @@ class rootWindow(QWidget):
             dlg.exec()
 
     def setFile(self, meta, file_id, missing = False, step_1 = False):
+        
+        if file_id + 1 > self.tableWidget.rowCount():
+            self.tableWidget.setRowCount(file_id+1) 
             
         if step_1:
             
-            self.tableWidget.setItem(file_id, 0, QTableWidgetItem(meta["name"]))
-            self.tableWidget.setItem(file_id, 1, QTableWidgetItem("..."))
+            self.tableWidget.setItem(file_id, 0, QTableWidgetItem("..."))
+            self.tableWidget.setItem(file_id, 1, QTableWidgetItem(meta["name"]))
             self.tableWidget.setItem(file_id, 2, QTableWidgetItem("..."))
             self.tableWidget.setItem(file_id, 3, QTableWidgetItem("..."))
             self.tableWidget.setItem(file_id, 4, QTableWidgetItem("..."))
-            self.tableWidget.setItem(file_id, 5, QTableWidgetItem(meta["file_path"]))
-            self.tableWidget.setItem(file_id, 6, QTableWidgetItem("..."))
+            self.tableWidget.setItem(file_id, 5, QTableWidgetItem("..."))
+            self.tableWidget.setItem(file_id, 6, QTableWidgetItem(meta["file_path"]))
+            self.tableWidget.setItem(file_id, 7, QTableWidgetItem("..."))
+            self.tableWidget.setItem(file_id, 8, QTableWidgetItem("..."))
+            self.tableWidget.setItem(file_id, 9, QTableWidgetItem("..."))
             
-            for c in range(7):
+            for c in range(self.table_cols):
                                     
                         self.tableWidget.item(file_id, c).setBackground(QColor(150,150,150))
         
         else:
                
-            self.tableWidget.setItem(file_id, 0, QTableWidgetItem(meta["name"]))
-            self.tableWidget.setItem(file_id, 1, QTableWidgetItem(meta["date"]))
-            self.tableWidget.setItem(file_id, 2, QTableWidgetItem(meta["d_size"]))
-            self.tableWidget.setItem(file_id, 3, QTableWidgetItem(meta["disk"]))
-            self.tableWidget.setItem(file_id, 4, QTableWidgetItem(meta["folder"]))
-            self.tableWidget.setItem(file_id, 5, QTableWidgetItem(meta["file_path"]))
+            self.tableWidget.setItem(file_id, 0, QTableWidgetItem("..."))
+            self.tableWidget.setItem(file_id, 1, QTableWidgetItem(meta["name"]))
+            self.tableWidget.setItem(file_id, 2, QTableWidgetItem(meta["date"]))
+            self.tableWidget.setItem(file_id, 3, QTableWidgetItem(meta["d_size"]))
+            self.tableWidget.setItem(file_id, 4, QTableWidgetItem(meta["disk"]))
+            self.tableWidget.setItem(file_id, 5, QTableWidgetItem(meta["folder"]))
+            self.tableWidget.setItem(file_id, 6, QTableWidgetItem(meta["file_path"]))
+            
+            if "codec" in meta:
+                
+                self.tableWidget.setItem(file_id, 9, QTableWidgetItem(meta["codec"]))
+                
+            else:
+                
+                self.tableWidget.setItem(file_id, 9, QTableWidgetItem("No codec"))
+            
             if "sha256" in meta:
                 
                 Debug.Log("File scanned with SHA : " + str(meta))
                 
-                self.tableWidget.setItem(file_id, 6, QTableWidgetItem(meta["sha256"]))
+                self.tableWidget.setItem(file_id, 0, QTableWidgetItem(str(meta["id"])))
+                self.tableWidget.setItem(file_id, 7, QTableWidgetItem(meta["sha256"]))
+                self.tableWidget.setItem(file_id, 8, QTableWidgetItem(meta["sha_date"]))
                 
                 if not missing:
-                    for c in range(7):
+                    for c in range(self.table_cols):
                                     
                         self.tableWidget.item(file_id, c).setBackground(QColor(200,255,200))
                 
@@ -358,21 +432,22 @@ class rootWindow(QWidget):
 
                         self.duplicates.append(file_id)
                         
-                        for i in range(7):
+                        for i in range(self.table_cols):
                             self.tableWidget.item(file_id, i).setBackground(QColor(200,200,255))
                 
                     else:
                         self.sha256.append(meta["sha256"])
                         
                 else:
-                    for i in range(7):
+                    for i in range(self.table_cols):
                         self.tableWidget.item(file_id, i).setBackground(QColor(255,100,100))
                     
             else:
                 
-                self.tableWidget.setItem(file_id, 6, QTableWidgetItem("..."))
+                self.tableWidget.setItem(file_id, 7, QTableWidgetItem("..."))
+                self.tableWidget.setItem(file_id, 8, QTableWidgetItem("..."))
                 
-                for c in range(7):
+                for c in range(self.table_cols):
                     self.tableWidget.item(file_id, c).setBackground(QColor(255,200,150))
                 
         return True
@@ -382,25 +457,109 @@ class rootWindow(QWidget):
         self.tableWidget = QTableWidget(self.win)
         
         self.tableWidget.setRowCount(files_count + 1) 
-        self.tableWidget.setColumnCount(7)  
+        self.tableWidget.setColumnCount(self.table_cols)  
         
         self.tableWidget.setGeometry(10, 50, self.width-20, self.height-60)
         
-        self.tableWidget.setItem(0, 0, QTableWidgetItem("Name"))
-        self.tableWidget.setItem(0, 1, QTableWidgetItem("Date"))
-        self.tableWidget.setItem(0, 2, QTableWidgetItem("Size"))
-        self.tableWidget.setItem(0, 3, QTableWidgetItem("Disk"))
-        self.tableWidget.setItem(0, 4, QTableWidgetItem("Folder"))
-        self.tableWidget.setItem(0, 5, QTableWidgetItem("File Path"))
-        self.tableWidget.setItem(0, 6, QTableWidgetItem("SHA256"))
+        self.tableWidget.setSelectionMode(QAbstractItemView.NoSelection)
+        self.tableWidget.verticalHeader().setVisible(False)
+        self.tableWidget.horizontalHeader().setVisible(False)
         
-        self.tableWidget.setColumnWidth(0, 250)
-        self.tableWidget.setColumnWidth(1, 200)
-        self.tableWidget.setColumnWidth(2, 100)
-        self.tableWidget.setColumnWidth(3, 5)
-        self.tableWidget.setColumnWidth(4, 200)
-        self.tableWidget.setColumnWidth(5, 350)
-        self.tableWidget.setColumnWidth(6, 450)
+        self.tableWidget.setItem(0, 0, QTableWidgetItem("ID"))
+        self.tableWidget.setItem(0, 1, QTableWidgetItem("Name"))
+        self.tableWidget.setItem(0, 2, QTableWidgetItem("Date"))
+        self.tableWidget.setItem(0, 3, QTableWidgetItem("Size"))
+        self.tableWidget.setItem(0, 4, QTableWidgetItem("Disk"))
+        self.tableWidget.setItem(0, 5, QTableWidgetItem("Folder"))
+        self.tableWidget.setItem(0, 6, QTableWidgetItem("File Path"))
+        self.tableWidget.setItem(0, 7, QTableWidgetItem("SHA256"))
+        self.tableWidget.setItem(0, 8, QTableWidgetItem("Scan Date"))
+        self.tableWidget.setItem(0, 9, QTableWidgetItem("Codec"))
+        
+        self.tableWidget.setColumnWidth(0, 5)
+        self.tableWidget.setColumnWidth(1, 250)
+        self.tableWidget.setColumnWidth(2, 200)
+        self.tableWidget.setColumnWidth(3, 100)
+        self.tableWidget.setColumnWidth(4, 5)
+        self.tableWidget.setColumnWidth(5, 200)
+        self.tableWidget.setColumnWidth(6, 350)
+        self.tableWidget.setColumnWidth(7, 450)
+        self.tableWidget.setColumnWidth(8, 175)
+        self.tableWidget.setColumnWidth(9, 100)
+
+class settingsWindow(QWidget):
+    
+    def __init__(self):
+        super().__init__()
+        
+        self.height = 200
+        self.width = 300
+        
+    def build(self, win):
+        
+        self.setWindowTitle("Settings")
+        self.setGeometry(win.win.pos().x() + (win.width/2 - self.width/2), win.win.pos().y() + (win.height/2 - self.height/2), self.width, self.height)
+        
+        self.label = QLabel(self)
+        self.label.setText("Settings")
+        self.label.setGeometry(round(self.width/2 - 80/2), 10, 80, 30)
+        self.label.setStyleSheet("font-size: 22px")
+        
+        self.add_tag_box = QCheckBox(self)
+        self.add_tag_box.setText("Add tag")
+        self.add_tag_box.setGeometry(30, 50, 60, 30)
+        
+        self.tag_label = QLabel(self)
+        self.tag_label.setText('Tag :')
+        self.tag_label.setGeometry(30, 70, 60, 30)
+        
+        self.tag_input = QLineEdit(self)
+        self.tag_input.setGeometry(60, 75, 60, 16)
+        
+        self.scan_threads_label = QLabel(self)
+        self.scan_threads_label.setText('Scan threads :')
+        self.scan_threads_label.setGeometry(30, 90, 75, 30)
+        
+        self.scan_threads_input = QLineEdit(self)
+        self.scan_threads_input.setGeometry(105, 95, 20, 16)
+        
+        self.log_box = QCheckBox(self)
+        self.log_box.setText("Log")
+        self.log_box.setGeometry(30, 110, 60, 30)
+        
+        self.save_button = QPushButton('Save', self)
+        self.save_button.setGeometry(round(self.width/2 - 40/2), self.height - 40, 40, 25)
+        self.save_button.clicked.connect(self.save_config)
+        
+        self.set_config()
+        
+    def set_config(self):
+        
+        with open("config.json", "r") as f:
+            
+            config = json.loads(f.read())
+            
+            if config["add_tag"]:
+                
+                self.add_tag_box.setChecked(True)
+                
+            if config["log"]:
+                
+                self.log_box.setChecked(True)
+                
+            self.tag_input.setText(config["tag"])
+            self.scan_threads_input.setText(str(config["scan_threads"]))
+            
+    def save_config(self):
+        
+        payload = {
+            "add_tag": self.add_tag_box.isChecked(),
+            "log": self.log_box.isChecked(),
+            "tag": self.tag_input.text(),
+            "scan_threads": int(self.scan_threads_input.text()),
+        }
+        
+        config.update(payload)
 
 class helpWindow(QWidget):
     
@@ -411,7 +570,8 @@ class helpWindow(QWidget):
         self.width = 450
         
     def build(self, win):
-        self.setWindowTitle("Collection Manager BETA-0.3")
+        
+        self.setWindowTitle("Collection Manager BETA-0.4")
         self.setGeometry(win.win.pos().x() + (win.width/2 - self.width/2), win.win.pos().y() + (win.height/2 - self.height/2), self.width, self.height)
         
         self.label = QLabel(self)
@@ -420,7 +580,7 @@ class helpWindow(QWidget):
         self.label.setStyleSheet("font-size: 22px")
         
         self.label = QLabel(self)
-        self.label.setText("Version : BETA-0.3")
+        self.label.setText("Version : BETA-0.4")
         self.label.setGeometry(round(self.width/2 - 190/2), 50, 190, 30)
         
         self.label = QLabel(self)
@@ -440,6 +600,7 @@ class scanWindow(QWidget):
         self.width = 300
         
     def build(self, win):
+        
         self.setWindowTitle("Scanning...")
         self.setGeometry(win.win.pos().x() + (win.width/2 - self.width/2), win.win.pos().y() + (win.height/2 - self.height/2), self.width, self.height)
         
@@ -472,10 +633,14 @@ class scanWindow(QWidget):
         
         scanner.paused = not scanner.paused
         
-        if scanner.paused:
-            self.pause_button.setText("Resume")
-        else:
+        if not scanner.paused:
             self.pause_button.setText("Pause")
+        else:
+            self.pause_button.setText("Wait...")
+            
+    def paussed(self):
+        
+        self.pause_button.setText("Resume")
             
     @pyqtSlot()
     def end(self):

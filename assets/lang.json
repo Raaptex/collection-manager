@@ -1,0 +1,12 @@
+{
+    "fr": {
+        "not_assigned": "Non assigné",
+        
+        "scan_button": "Scanner",
+        "remove_duplicates_button": "Supprimer",
+        "export_csv_button": "Exporter",
+        "clean_base_button": "Nettoyer",
+        "import_button": "Importer",
+        "help_button": "Aide"
+    }
+}
