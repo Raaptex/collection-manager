@@ -23,3 +23,5 @@ Version type : Testing
 - Orange : Sha loading
 - Red : File deleted since the last scan
 - Blue : Duplicated file
+- Yellow :
+- Purple :
