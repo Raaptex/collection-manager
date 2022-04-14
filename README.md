@@ -20,8 +20,8 @@ Version type : Testing
  - ### _Colors_ :
 
 - Green : Valid file with sha
-- Orange : Sha loading
+- Orange : Sha queue
 - Red : File deleted since the last scan
 - Blue : Duplicated file
-- Yellow :
-- Purple :
+- Yellow : Sha calculation
+- Purple : Moved file
